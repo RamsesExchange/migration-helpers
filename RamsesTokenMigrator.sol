@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 pragma solidity ^0.8.20;
 
 error Unauthorized();
@@ -20,7 +20,7 @@ contract RamsesTokenMigrator {
     address public immutable oldVe;
     address public immutable newVe;
 
-    uint256 public immutable unlockCutOff;
+    uint256 public unlockCutOff;
 
     bool public paused;
 
