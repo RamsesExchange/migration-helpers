@@ -34,8 +34,6 @@ contract RamsesTokenMigrator {
     /// @notice new VotingEscrow
     address public immutable newVe;
 
-    /// @notice assigned bot to arbitrage
-    address public arbitrager;
     /// @notice timestamp where liquid assets are given for VotingEscrow veNFTs
     uint256 public unlockCutOff;
     /// @notice whether migrations are paused
@@ -60,12 +58,6 @@ contract RamsesTokenMigrator {
     /// @dev permissioned modifier for multisig interactions
     modifier permissioned() {
         require(msg.sender == multisig, Unauthorized());
-        _;
-    }
-
-    /// @dev permissioned modifier for arbitrager interactions
-    modifier arbitrage() {
-        require(msg.sender == arbitrager, Unauthorized());
         _;
     }
 
@@ -198,31 +190,22 @@ contract RamsesTokenMigrator {
         unlockCutOff = _ts;
     }
 
-    /// @notice perform an arbitrage on the price discrepancy between the old token and new token
-    /// @param _router address of the aggregation router (odos typically)
-    /// @param _routingData the bytes data of the swap routes
-    function perform(
-        address _router,
-        bytes calldata _routingData
-    ) external arbitrage {
-        (uint256 oldRamBalanceBefore, uint256 newRamBalanceBefore) = (
-            _ram.balanceOf(address(this)),
-            _new.balanceOf(address(this))
-        );
-
-        /// @dev give approval to the router temporarily
-        _ram.approve(_router, oldRamBalanceBefore);
-        /// @dev ensure the arbitrary call succeeds
-        (bool success, ) = _router.call(_routingData);
-        require(success, Failed());
-        /// @dev set approval back to 0
-        _ram.approve(_router, 0);
-        uint256 differential = ((_new.balanceOf(address(this)) -
-            newRamBalanceBefore) -
-            (oldRamBalanceBefore - _ram.balanceOf(address(this))));
-        /// @dev require the differential is > 0
-        require(differential > 0, Failed());
-        /// @dev send to multisig to be burned or repurposed
-        _new.transfer(multisig, differential);
+    /// @notice retrieves a token that shouldn't be there
+    /// @param _token the address of the token
+    /// @param _all if take  all
+    /// @param _amount the amount of tokens if not all
+    function retrieve(
+        address _token,
+        bool _all,
+        uint256 _amount
+    ) external permissioned {
+        if (_all) {
+            IERC20(_token).transfer(
+                multisig,
+                IERC20(_token).balanceOf(address(this))
+            );
+        } else {
+            IERC20(_token).transfer(multisig, _amount);
+        }
     }
 }
