@@ -77,6 +77,8 @@ contract RamsesTokenMigrator {
         _newVe = IVotingEscrowV3(newVe);
     }
 
+    /// @notice migrate RAM for the new RAM token
+    /// @param _amount the amount of tokens to migrate
     function migrateToken(uint256 _amount) external notPaused {
         /// @dev ensure the balance of oldRAM is enough
         require(_ram.balanceOf(msg.sender) >= _amount, NotEnough());
@@ -90,26 +92,32 @@ contract RamsesTokenMigrator {
         emit MigratedRam(msg.sender, _amount);
     }
 
-    function migrateVe(uint256 _tokenId) external notPaused {
-        require(msg.sender == _ve.ownerOf(_tokenId), Unauthorized());
-        (int128 lockAmount, uint256 timeEnd) = _ve.locked(_tokenId);
-        uint256 _amount = uint256(int256(lockAmount));
-        bool treatAsLiquid = (timeEnd <= unlockCutOff);
+    /// @notice migrate a veNFT position ,liquid or ve returned based on unlock time
+    /// @param _tokenId the veNFT Ids
+    function migrateVe(uint256[] calldata _tokenId) external notPaused {
+        for (uint256 i = 0; i < _tokenId.length; ++i) {
+            require(msg.sender == _ve.ownerOf(_tokenId[i]), Unauthorized());
+            (int128 lockAmount, uint256 timeEnd) = _ve.locked(_tokenId[i]);
+            uint256 _amount = uint256(int256(lockAmount));
+            bool treatAsLiquid = (timeEnd <= unlockCutOff);
 
-        _ve.transferFrom(msg.sender, multisig, _tokenId);
-        /// @dev if the veNFT unlock time is less than unlockCutOff
-        if (treatAsLiquid) {
-            _new.transfer(msg.sender, _amount);
-            ramMigrated[msg.sender] += _amount;
-            emit MigratedRam(msg.sender, _amount);
-        } else {
-            _newVe.createLock(msg.sender, _amount);
-            veRamMigrated[msg.sender] += _amount;
-            emit veMigrated(msg.sender, _tokenId, _amount);
+            _ve.transferFrom(msg.sender, multisig, _tokenId[i]);
+            /// @dev if the veNFT unlock time is less than unlockCutOff
+            if (treatAsLiquid) {
+                _new.transfer(msg.sender, _amount);
+                ramMigrated[msg.sender] += _amount;
+                emit MigratedRam(msg.sender, _amount);
+            } else {
+                _newVe.createLock(msg.sender, _amount);
+                veRamMigrated[msg.sender] += _amount;
+                emit veMigrated(msg.sender, _tokenId[i], _amount);
+            }
         }
     }
 
-    function depositPartnerNft(uint256 _tokenId) external {
+    /// @notice for legacy partner NFTs to deposit for migration
+    /// @param _tokenId the veNFT Id
+    function depositPartnerNft(uint256 _tokenId) external notPaused {
         require(msg.sender == _ve.ownerOf(_tokenId), Unauthorized());
         _ve.transferFrom(msg.sender, multisig, _tokenId);
         emit PartnerNftDeposited(msg.sender, _tokenId, tx.origin);
