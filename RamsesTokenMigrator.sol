@@ -5,6 +5,9 @@ pragma solidity ^0.8.20;
 error Unauthorized();
 error Paused();
 error NotEnough();
+error AlreadyLabeled();
+error NoLabel();
+error Migrated();
 
 interface IVotingEscrowV2 {
     function transferFrom(address, address, uint256) external;
@@ -34,6 +37,9 @@ contract RamsesTokenMigrator {
     mapping(address => uint256) public ramMigrated;
     mapping(address => uint256) public veRamMigrated;
 
+    mapping(uint256 => bool) public partnerNfts;
+    mapping(uint256 => bool) public migratedNft;
+
     modifier permissioned() {
         require(msg.sender == multisig, Unauthorized());
         _;
@@ -55,6 +61,9 @@ contract RamsesTokenMigrator {
         uint256 indexed tokenId,
         address indexed origin
     );
+
+    event Labeled(uint256[]);
+    event LabelRemoved(uint256);
 
     constructor(
         address _multisig,
@@ -110,6 +119,7 @@ contract RamsesTokenMigrator {
             } else {
                 _newVe.createLock(msg.sender, _amount);
                 veRamMigrated[msg.sender] += _amount;
+                migratedNft[_tokenId[i]] = true;
                 emit veMigrated(msg.sender, _tokenId[i], _amount);
             }
         }
@@ -119,8 +129,28 @@ contract RamsesTokenMigrator {
     /// @param _tokenId the veNFT Id
     function depositPartnerNft(uint256 _tokenId) external notPaused {
         require(msg.sender == _ve.ownerOf(_tokenId), Unauthorized());
+        require(partnerNfts[_tokenId], Unauthorized());
         _ve.transferFrom(msg.sender, multisig, _tokenId);
         emit PartnerNftDeposited(msg.sender, _tokenId, tx.origin);
+    }
+
+    /// @notice add a partner label on Nfts
+    /// @param _tokenId the veNFT Ids
+    function label(uint256[] calldata _tokenId) external permissioned {
+        for (uint256 i = 0; i < _tokenId.length; ++i) {
+            require(!partnerNfts[_tokenId[i]], AlreadyLabeled());
+            partnerNfts[_tokenId[i]] = true;
+        }
+        emit Labeled(_tokenId);
+    }
+
+    /// @notice remove a partner label on an Nft
+    /// @param _tokenId the veNFT Id
+    function wipeLabel(uint256 _tokenId) external permissioned {
+        require(partnerNfts[_tokenId], NoLabel());
+        require(!migratedNft[_tokenId], Migrated());
+        partnerNfts[_tokenId] = false;
+        emit LabelRemoved(_tokenId);
     }
 
     /// @notice pauses the contract
