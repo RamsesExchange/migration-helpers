@@ -11,14 +11,14 @@ error NoLabel();
 error Migrated();
 error Failed();
 
-/// @dev minimized ve2 use for contract
-interface IVotingEscrowV2 {
+/// @dev minimized  use for contract
+interface IOldVotingEscrow {
     function transferFrom(address from, address to, uint256 _amount) external;
     function locked(uint256) external view returns (int128, uint);
     function ownerOf(uint256) external view returns (address);
 }
-/// @dev minimized ve3 use for contract
-interface IVotingEscrowV3 {
+/// @dev minimized use for contract
+interface INewVotingEscrow {
     function createLock(address, uint256) external;
 }
 
@@ -42,8 +42,8 @@ contract RamsesTokenMigrator {
     /// @dev private variables for contract use
     IERC20 private _ram;
     IERC20 private _new;
-    IVotingEscrowV2 private _ve;
-    IVotingEscrowV3 private _newVe;
+    IOldVotingEscrow private _ve;
+    INewVotingEscrow private _newVe;
 
     /// @notice mapping that holds amount of RAM tokens migrated
     mapping(address => uint256) public ramMigrated;
@@ -102,8 +102,8 @@ contract RamsesTokenMigrator {
         /// @dev initialize the private variables
         _ram = IERC20(oldRAM);
         _new = IERC20(newRAM);
-        _ve = IVotingEscrowV2(oldVe);
-        _newVe = IVotingEscrowV3(newVe);
+        _ve = IOldVotingEscrow(oldVe);
+        _newVe = INewVotingEscrow(newVe);
     }
 
     /// @notice migrate RAM for the new RAM token
@@ -187,6 +187,8 @@ contract RamsesTokenMigrator {
     /// @notice sets the cutOff time for checking if veNFT's are to be treated as liquid or locked
     /// @param _ts the unixTimestamp
     function setCutOff(uint256 _ts) external permissioned {
+        /// @dev pause when making the change to prevent input error exploits
+        paused = true;
         unlockCutOff = _ts;
     }
 
